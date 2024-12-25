@@ -1,15 +1,14 @@
 #7766016748:AAGPG0MsU1iE9syW3j5s2qJpGSS5RhJmLhc
+from telegram import InputMediaPhoto, Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, ConversationHandler, MessageHandler, filters
+import sqlite3
 import asyncio
 
-from telegram import InputMediaPhoto, Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, ConversationHandler
-import sqlite3
 
 # Стадії конверсії
 DATE_START, DATE_END, GUESTS, ROOM_TYPE = range(4)
 
-app = ApplicationBuilder().token('7766016748:AAGPG0MsU1iE9syW3j5s2qJpGSS5RhJmLhc'
-                                 '').build()
+app = ApplicationBuilder().token('7766016748:AAGPG0MsU1iE9syW3j5s2qJpGSS5RhJmLhc').build()
 
 # Налаштування бази даних
 def setup_database():
@@ -129,6 +128,7 @@ async def button_handler(update, context):
             "- Время за которое вам нада добратся на место\n"
             "- Заказ личного водителя на определённое время, за определённую сумму\n"
         )
+        return ConversationHandler.END
     elif q.data == "contacts":
         await  q.message.reply_text(
             "Наши контактные данные:\n"
@@ -136,6 +136,7 @@ async def button_handler(update, context):
             "- Электронная почта: contact@dreamstay.com\n"
             "- Адрес: ул. Мира, 10, Киев\n"
         )
+        return ConversationHandler.END
     elif q.data == "schedule":
         await  q.message.reply_text(
             "Время когда водители меньше всего ездят, а могут вообще не ездить:\n"
@@ -143,6 +144,7 @@ async def button_handler(update, context):
             "- Обед: 12:00 - 13:00\n"
             "- Ужин: 18:00 - 19:00\n"
         )
+        return ConversationHandler.END
 
 # Сбор данных для бронирования
 async def date_start(update, context):
@@ -179,11 +181,7 @@ async def cancel(update, context):
     await update.message.reply_text("Бронирование отменено. Возвращайтесь, когда будете готовы!", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
-#Інцінізація бази данних
-setup_database()
 
-app.add_handler(CommandHandler("start", start_command))
-app.add_handler(CallbackQueryHandler(button_handler))
 #InputMediaPhoto
 async def send_photos(update,contrxt):
     #Шляхи до локальних файлів
@@ -199,7 +197,21 @@ async def send_photos(update,contrxt):
 
 #Додавання обробника команди
 app.add_handler(CommandHandler("sendphotos", send_photos))
+booking_handler = ConversationHandler(
+    entry_points=[CallbackQueryHandler(button_handler, pattern="^(Order_a_taxi|services|contacts|schedule)$")],
+    states={
+        DATE_START: [MessageHandler(filters.TEXT & ~filters.COMMAND, date_start)],
+        DATE_END: [MessageHandler(filters.TEXT & ~filters.COMMAND, date_end)],
+        GUESTS: [MessageHandler(filters.TEXT & ~filters.COMMAND, guests)],
+        ROOM_TYPE: [MessageHandler(filters.TEXT & ~filters.COMMAND, room_type)],
+    },
+    fallbacks=[CommandHandler("cancel", cancel)], per_user= True
+)
+app.add_handler(booking_handler)
+#Інцінізація бази данних
+setup_database()
 
+app.add_handler(CommandHandler("start", start_command))
 
 #Запуск бота
 if __name__ == "__main__":
